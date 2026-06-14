@@ -29,6 +29,8 @@ RUN_CONVERSION="${RUN_CONVERSION:-1}"
 UV_RUN_FLAGS="${UV_RUN_FLAGS:---no-sync}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+BRIDGE_SRC="$PWD/src"
+PYTHONPATH_OVERLAY="$MCORE:$BRIDGE_SRC:${PYTHONPATH:-}"
 
 echo "=== GLM-4-9B OMP Bridge conversion preflight ==="
 echo "Bridge repo:        $PWD"
@@ -44,7 +46,7 @@ echo "uv run flags:       $UV_RUN_FLAGS"
 echo
 
 echo "=== Python/package provenance ==="
-PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python - <<'PY'
+PYTHONPATH="$PYTHONPATH_OVERLAY" uv run $UV_RUN_FLAGS python - <<'PY'
 import pathlib
 import sys
 
@@ -70,7 +72,7 @@ else
   TRUST_REMOTE_CODE_ARG=()
 fi
 
-HF_MODEL="$HF_MODEL" TRUST_REMOTE_CODE_PY="$TRUST_REMOTE_CODE_PY" PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python - <<'PY'
+HF_MODEL="$HF_MODEL" TRUST_REMOTE_CODE_PY="$TRUST_REMOTE_CODE_PY" PYTHONPATH="$PYTHONPATH_OVERLAY" uv run $UV_RUN_FLAGS python - <<'PY'
 import json
 import os
 import sys
@@ -117,7 +119,7 @@ fi
 echo "=== HF -> Megatron checkpoint conversion ==="
 mkdir -p "$(dirname "$MEGATRON_CKPT")"
 
-PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python examples/conversion/convert_checkpoints.py import \
+PYTHONPATH="$PYTHONPATH_OVERLAY" uv run $UV_RUN_FLAGS python examples/conversion/convert_checkpoints.py import \
   --hf-model "$HF_MODEL" \
   --megatron-path "$MEGATRON_CKPT" \
   --torch-dtype "$TORCH_DTYPE" \
