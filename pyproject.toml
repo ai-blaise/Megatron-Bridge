@@ -97,6 +97,7 @@ dependencies = [
     "open-clip-torch>=3.2.0",
     "mlflow>=3.9.0",    # To address CVE-2025-15031
     "comet-ml>=3.50.0",
+    "nvidia-modelopt==0.44.0rc5",
     "torch>=2.6.0",
     "flashinfer-python==0.6.8.post1",  # keep flashinfer-python and flashinfer-cubin in lockstep:
     "flashinfer-cubin==0.6.8.post1",   # the runtime version-match check fails otherwise
