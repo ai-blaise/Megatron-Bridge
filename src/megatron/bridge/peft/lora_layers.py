@@ -13,15 +13,43 @@
 # limitations under the License.
 
 import math
+from contextlib import nullcontext
+from types import SimpleNamespace
 from typing import Any, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-import transformer_engine.pytorch as te
 from megatron.core.transformer.moe.moe_utils import apply_random_logits
 
 from megatron.bridge.peft.adapter_wrapper import AdapterWrapper
 from megatron.bridge.utils.import_utils import safe_import
+
+try:
+    import transformer_engine.pytorch as te
+except ImportError:
+
+    def _missing_transformer_engine(*args: Any, **kwargs: Any) -> None:
+        raise ImportError("transformer_engine is not installed")
+
+
+    class _MissingTEOps:
+        Sequential = nn.Sequential
+        Dropout = nn.Dropout
+        ConstantScale = nn.Identity
+        AddExtraInput = nn.Identity
+        MakeExtraOutput = nn.Identity
+        Quantize = nn.Identity
+        Linear = nn.Linear
+        LayerNorm = nn.LayerNorm
+        RMSNorm = nn.LayerNorm
+
+
+    te = SimpleNamespace(  # type: ignore[assignment]
+        Linear=nn.Linear,
+        LayerNormLinear=nn.Linear,
+        ops=_MissingTEOps(),
+        fp8_autocast=lambda *args, **kwargs: nullcontext(),
+    )
 
 
 if torch.cuda.is_available():

@@ -14,12 +14,13 @@
 
 import logging
 from dataclasses import dataclass, field
+from contextlib import nullcontext
+from types import SimpleNamespace
 from typing import List, Literal, Optional
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import transformer_engine.pytorch as te
 from megatron.core import parallel_state
 from megatron.core.transformer.moe.router import TopKRouter
 from megatron.core.utils import unwrap_model
@@ -48,6 +49,15 @@ from megatron.bridge.peft.utils import (
 
 
 logger = logging.getLogger(__name__)
+
+try:
+    import transformer_engine.pytorch as te
+except ImportError:
+    te = SimpleNamespace(  # type: ignore[assignment]
+        Linear=nn.Linear,
+        LayerNormLinear=nn.Linear,
+        fp8_autocast=lambda *args, **kwargs: nullcontext(),
+    )
 
 try:
     import bitsandbytes
