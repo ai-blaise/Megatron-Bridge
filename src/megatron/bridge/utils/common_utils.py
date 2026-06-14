@@ -43,7 +43,23 @@ except ImportError:
 
 from megatron.core.transformer.module import Float16Module
 from megatron.core.utils import get_batch_on_this_cp_rank
-from megatron.training.utils.common_utils import get_local_rank_preinit  # noqa: F401
+
+try:
+    from megatron.training.utils.common_utils import get_local_rank_preinit  # noqa: F401
+except ImportError:
+
+    def get_local_rank_preinit() -> int:
+        """Get local rank before Megatron training initialization."""
+        for env_var in (
+            "LOCAL_RANK",
+            "SLURM_LOCALID",
+            "OMPI_COMM_WORLD_LOCAL_RANK",
+            "MV2_COMM_WORLD_LOCAL_RANK",
+        ):
+            value = os.environ.get(env_var)
+            if value is not None:
+                return int(value)
+        return 0
 
 from megatron.bridge.utils.slurm_utils import (
     resolve_slurm_master_addr,
