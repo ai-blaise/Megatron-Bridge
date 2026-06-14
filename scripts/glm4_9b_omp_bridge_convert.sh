@@ -17,6 +17,7 @@ BASE_MODEL="${BASE_MODEL:-bunbohue/GLM-4-9B-0414-FP8}"
 BASE_TOKENIZER="${BASE_TOKENIZER:-THUDM/GLM-4-9B-0414}"
 TOKENIZER_SOURCE="${TOKENIZER_SOURCE:-cerebras/DeepSeek-V3.2-REAP-345B-A37B}"
 TOKENIZER_REVISION="${TOKENIZER_REVISION:-4fd8e8c3e08442c4a6dde6dd3fa3dac481a0205b}"
+MCORE="${MCORE:-$HOME/Megatron-LM}"
 
 MEGATRON_CKPT="${MEGATRON_CKPT:-$HOME/checkpoints/glm4_9b_omp_init}"
 DATA_ROOT="${DATA_ROOT:-$HOME/data/my_sft_jsonl}"
@@ -25,6 +26,7 @@ SAVE_CKPT="${SAVE_CKPT:-$HOME/checkpoints/glm4_9b_omp_trained}"
 TORCH_DTYPE="${TORCH_DTYPE:-bfloat16}"
 TRUST_REMOTE_CODE="${TRUST_REMOTE_CODE:-1}"
 RUN_CONVERSION="${RUN_CONVERSION:-1}"
+UV_RUN_FLAGS="${UV_RUN_FLAGS:---no-sync}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -35,12 +37,14 @@ echo "Base model:         $BASE_MODEL"
 echo "Base tokenizer:     $BASE_TOKENIZER"
 echo "Tokenizer source:   $TOKENIZER_SOURCE"
 echo "Tokenizer revision: $TOKENIZER_REVISION"
+echo "MCore overlay:      $MCORE"
 echo "Megatron ckpt root: $MEGATRON_CKPT"
 echo "Torch dtype:        $TORCH_DTYPE"
+echo "uv run flags:       $UV_RUN_FLAGS"
 echo
 
 echo "=== Python/package provenance ==="
-uv run python - <<'PY'
+PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python - <<'PY'
 import pathlib
 import sys
 
@@ -66,7 +70,7 @@ else
   TRUST_REMOTE_CODE_ARG=()
 fi
 
-HF_MODEL="$HF_MODEL" TRUST_REMOTE_CODE_PY="$TRUST_REMOTE_CODE_PY" uv run python - <<'PY'
+HF_MODEL="$HF_MODEL" TRUST_REMOTE_CODE_PY="$TRUST_REMOTE_CODE_PY" PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python - <<'PY'
 import json
 import os
 import sys
@@ -113,7 +117,7 @@ fi
 echo "=== HF -> Megatron checkpoint conversion ==="
 mkdir -p "$(dirname "$MEGATRON_CKPT")"
 
-uv run python examples/conversion/convert_checkpoints.py import \
+PYTHONPATH="$MCORE:${PYTHONPATH:-}" uv run $UV_RUN_FLAGS python examples/conversion/convert_checkpoints.py import \
   --hf-model "$HF_MODEL" \
   --megatron-path "$MEGATRON_CKPT" \
   --torch-dtype "$TORCH_DTYPE" \
