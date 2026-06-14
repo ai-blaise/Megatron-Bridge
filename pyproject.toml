@@ -142,6 +142,9 @@ override-dependencies = [
     "nvidia-cutlass-dsl[cu13]; sys_platform == 'never'"     # Rely on system site packages install
 ]
 
+[tool.uv.extra-build-dependencies]
+transformer-engine = ["setuptools"]
+
 [[tool.uv.index]]
 name = "nvidia"
 url = "https://pypi.nvidia.com"
