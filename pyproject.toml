@@ -147,7 +147,7 @@ name = "nvidia"
 url = "https://pypi.nvidia.com"
 
 [tool.uv.sources]
-megatron-core = { path = "~/Megatron-LM/", editable = true }
+megatron-core = { path = "../Megatron-LM/", editable = true }
 nvidia-modelopt = { index = "nvidia" }
 
 [project.optional-dependencies]
