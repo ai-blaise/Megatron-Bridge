@@ -21,12 +21,36 @@ distributed training configuration from SLURM environment variables.
 import os
 import warnings
 
-from megatron.core._slurm_utils import (
-    is_slurm_job,  # noqa: F401
-    resolve_slurm_local_rank,  # noqa: F401
-    resolve_slurm_rank,  # noqa: F401
-    resolve_slurm_world_size,  # noqa: F401
-)
+try:
+    from megatron.core._slurm_utils import (
+        is_slurm_job,  # noqa: F401
+        resolve_slurm_local_rank,  # noqa: F401
+        resolve_slurm_rank,  # noqa: F401
+        resolve_slurm_world_size,  # noqa: F401
+    )
+except ImportError:
+
+    def is_slurm_job() -> bool:
+        """Detect whether we are running under SLURM."""
+        return any(key in os.environ for key in ("SLURM_NTASKS", "SLURM_JOB_ID", "SLURM_NODELIST", "SLURM_JOB_NODELIST"))
+
+
+    def resolve_slurm_local_rank() -> int | None:
+        """Resolve the local rank from common SLURM env vars."""
+        value = os.environ.get("SLURM_LOCALID")
+        return int(value) if value is not None else None
+
+
+    def resolve_slurm_rank() -> int | None:
+        """Resolve the global rank from common SLURM env vars."""
+        value = os.environ.get("SLURM_PROCID")
+        return int(value) if value is not None else None
+
+
+    def resolve_slurm_world_size() -> int | None:
+        """Resolve the world size from common SLURM env vars."""
+        value = os.environ.get("SLURM_NTASKS")
+        return int(value) if value is not None else None
 
 
 def resolve_slurm_master_addr() -> str | None:
