@@ -122,13 +122,13 @@ def default_layer_spec(config: "GPTModelProvider") -> ModuleSpec:
     if config.use_transformer_engine_full_layer_spec:
         try:
             return transformer_engine_full_layer_spec(config)
-        except NameError:
+        except (NameError, TypeError):
             logger.warning("TransformerEngine not installed, falling back to local layer spec.")
             return local_layer_spec(config)
 
     try:
         return transformer_engine_layer_spec(config)
-    except NameError:
+    except (NameError, TypeError):
         logger.warning("TransformerEngine not installed, falling back to local layer spec.")
         return local_layer_spec(config)
 
