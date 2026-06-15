@@ -142,7 +142,7 @@ override-dependencies = [
 ]
 
 [tool.uv.extra-build-dependencies]
-transformer-engine = ["setuptools"]
+transformer-engine = ["pybind11"]
 
 [[tool.uv.index]]
 name = "nvidia"
