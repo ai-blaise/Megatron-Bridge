@@ -37,6 +37,11 @@ echo "Tokenizer source:   $TOKENIZER_SOURCE"
 echo "Tokenizer revision: $TOKENIZER_REVISION"
 echo "Megatron ckpt root: $MEGATRON_CKPT"
 echo "Torch dtype:        $TORCH_DTYPE"
+if [[ -n "${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}" ]]; then
+  echo "HF auth token:      present"
+else
+  echo "HF auth token:      not set"
+fi
 echo
 
 echo "=== Python/package provenance ==="
@@ -77,8 +82,9 @@ from megatron.bridge import AutoBridge
 
 hf_model = os.environ["HF_MODEL"]
 trust_remote_code = os.environ["TRUST_REMOTE_CODE_PY"] == "True"
+token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
-cfg = AutoConfig.from_pretrained(hf_model, trust_remote_code=trust_remote_code)
+cfg = AutoConfig.from_pretrained(hf_model, trust_remote_code=trust_remote_code, token=token)
 
 fields = {
     "model_type": getattr(cfg, "model_type", None),
@@ -94,10 +100,11 @@ fields = {
 print(json.dumps(fields, indent=2, default=str))
 
 try:
-    bridge = AutoBridge.from_hf_pretrained(hf_model, trust_remote_code=trust_remote_code)
+    bridge = AutoBridge.from_hf_pretrained(hf_model, trust_remote_code=trust_remote_code, token=token)
 except Exception as exc:
     print("\nERROR: AutoBridge could not resolve this HF model.", file=sys.stderr)
     print("This is expected if the model is dense GLM-4 and no dense GLM bridge is registered.", file=sys.stderr)
+    print("It is also expected if the repo is private/gated, missing, or the HF token is not set.", file=sys.stderr)
     print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
     sys.exit(2)
 
