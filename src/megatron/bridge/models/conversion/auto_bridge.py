@@ -1208,6 +1208,7 @@ class AutoBridge(Generic[MegatronModelT]):
         cls,
         hf_model_id: str | Path,
         megatron_path: str | Path,
+        use_cpu_initialization: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -1222,6 +1223,7 @@ class AutoBridge(Generic[MegatronModelT]):
             hf_model_id: HuggingFace model ID or path to model directory
                 Examples: "meta-llama/Meta-Llama-3-8B", "./my_model"
             megatron_path: Directory path where the Megatron checkpoint will be saved
+            use_cpu_initialization: Initialize the Megatron model on CPU. Set to False to use CUDA/NCCL.
             **kwargs: Additional arguments passed to from_hf_pretrained
                 Common options include:
                 - torch_dtype: Model precision (torch.float16, torch.bfloat16)
@@ -1248,7 +1250,10 @@ class AutoBridge(Generic[MegatronModelT]):
         bridge = cls.from_hf_pretrained(hf_model_id, **kwargs)
 
         # Convert to Megatron model
-        megatron_model = bridge.to_megatron_model(wrap_with_ddp=False, use_cpu_initialization=True)
+        megatron_model = bridge.to_megatron_model(
+            wrap_with_ddp=False,
+            use_cpu_initialization=use_cpu_initialization,
+        )
 
         # Save as Megatron checkpoint
         hf_tokenizer_kwargs = {}

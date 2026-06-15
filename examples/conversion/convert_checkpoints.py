@@ -88,6 +88,7 @@ def import_hf_to_megatron(
     torch_dtype: Optional[str] = None,
     device_map: Optional[str] = None,
     trust_remote_code: bool = False,
+    use_cpu_initialization: bool = True,
 ) -> None:
     """
     Import a HuggingFace model and save it as a Megatron checkpoint.
@@ -98,6 +99,7 @@ def import_hf_to_megatron(
         torch_dtype: Model precision ("float32", "float16", "bfloat16")
         device_map: Device placement strategy ("auto", "cuda:0", etc.)
         trust_remote_code: Allow custom model code execution
+        use_cpu_initialization: Initialize Megatron model on CPU instead of CUDA.
     """
     print(f"🔄 Starting import: {hf_model} -> {megatron_path}")
 
@@ -115,11 +117,14 @@ def import_hf_to_megatron(
         kwargs["trust_remote_code"] = trust_remote_code
         print(f"   Trust remote code: {trust_remote_code}")
 
+    print(f"   Megatron CPU initialization: {use_cpu_initialization}")
+
     # Import using the convenience method
     print(f"📥 Loading HuggingFace model: {hf_model}")
     AutoBridge.import_ckpt(
         hf_model_id=hf_model,
         megatron_path=megatron_path,
+        use_cpu_initialization=use_cpu_initialization,
         **kwargs,
     )
 
@@ -226,6 +231,11 @@ def main():
     import_parser.add_argument("--torch-dtype", choices=["float32", "float16", "bfloat16"], help="Model precision")
     import_parser.add_argument("--device-map", help='Device placement strategy (e.g., "auto", "cuda:0")')
     import_parser.add_argument("--trust-remote-code", action="store_true", help="Allow custom model code execution")
+    import_parser.add_argument(
+        "--use-gpu-initialization",
+        action="store_true",
+        help="Initialize the Megatron model on CUDA/NCCL instead of CPU/Gloo",
+    )
 
     # Export subcommand (Megatron -> HF)
     export_parser = subparsers.add_parser("export", help="Export Megatron checkpoint to HuggingFace format")
@@ -254,6 +264,7 @@ def main():
             torch_dtype=args.torch_dtype,
             device_map=args.device_map,
             trust_remote_code=args.trust_remote_code,
+            use_cpu_initialization=not args.use_gpu_initialization,
         )
 
     elif args.command == "export":

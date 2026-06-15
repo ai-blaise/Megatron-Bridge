@@ -25,6 +25,7 @@ SAVE_CKPT="${SAVE_CKPT:-$HOME/checkpoints/glm4_9b_omp_trained}"
 TORCH_DTYPE="${TORCH_DTYPE:-bfloat16}"
 TRUST_REMOTE_CODE="${TRUST_REMOTE_CODE:-1}"
 RUN_CONVERSION="${RUN_CONVERSION:-1}"
+USE_GPU_INITIALIZATION="${USE_GPU_INITIALIZATION:-1}"
 GLOO_SOCKET_IFNAME="${GLOO_SOCKET_IFNAME:-lo}"
 export GLOO_SOCKET_IFNAME
 
@@ -39,6 +40,7 @@ echo "Tokenizer source:   $TOKENIZER_SOURCE"
 echo "Tokenizer revision: $TOKENIZER_REVISION"
 echo "Megatron ckpt root: $MEGATRON_CKPT"
 echo "Torch dtype:        $TORCH_DTYPE"
+echo "GPU initialization: $USE_GPU_INITIALIZATION"
 echo "Gloo interface:     $GLOO_SOCKET_IFNAME"
 if [[ -n "${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}" ]]; then
   echo "HF auth token:      present"
@@ -72,6 +74,12 @@ if [[ "$TRUST_REMOTE_CODE" == "1" || "$TRUST_REMOTE_CODE" == "true" ]]; then
 else
   TRUST_REMOTE_CODE_PY=False
   TRUST_REMOTE_CODE_ARG=()
+fi
+
+if [[ "$USE_GPU_INITIALIZATION" == "1" || "$USE_GPU_INITIALIZATION" == "true" ]]; then
+  GPU_INITIALIZATION_ARG=(--use-gpu-initialization)
+else
+  GPU_INITIALIZATION_ARG=()
 fi
 
 HF_MODEL="$HF_MODEL" TRUST_REMOTE_CODE_PY="$TRUST_REMOTE_CODE_PY" uv run python - <<'PY'
@@ -127,6 +135,7 @@ uv run python examples/conversion/convert_checkpoints.py import \
   --hf-model "$HF_MODEL" \
   --megatron-path "$MEGATRON_CKPT" \
   --torch-dtype "$TORCH_DTYPE" \
+  "${GPU_INITIALIZATION_ARG[@]}" \
   "${TRUST_REMOTE_CODE_ARG[@]}"
 
 echo
