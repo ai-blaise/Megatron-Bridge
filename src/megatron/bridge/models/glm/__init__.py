@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from megatron.bridge.models.glm.glm4_bridge import GLM4Bridge
 from megatron.bridge.models.glm.glm45_bridge import GLM45Bridge
 from megatron.bridge.models.glm.glm47_flash_bridge import GLM47FlashBridge
 
 
 __all__ = [
+    "GLM4Bridge",
     "GLM45Bridge",
     "GLM47FlashBridge",
 ]

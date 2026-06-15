@@ -71,7 +71,7 @@ _MODEL_FAMILIES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "Gemma4VLModelProvider",
         ),
     ),
-    ("megatron.bridge.models.glm", ("GLM45Bridge", "GLM47FlashBridge")),
+    ("megatron.bridge.models.glm", ("GLM4Bridge", "GLM45Bridge", "GLM47FlashBridge")),
     ("megatron.bridge.models.glm_moe_dsa", ("GLM5Bridge",)),
     ("megatron.bridge.models.glm_vl", ("GLM45VBridge", "GLM45VModelProvider")),
     ("megatron.bridge.models.gpt_oss", ("GPTOSSBridge",)),
