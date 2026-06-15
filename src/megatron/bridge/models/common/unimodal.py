@@ -12,11 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.training.models.dist_utils import (
-    _ddp_wrap,  # noqa: F401
-    _print_num_params,  # noqa: F401
-    _wrap_with_mp_wrapper,  # noqa: F401
-    build_virtual_pipeline_stages,  # noqa: F401
-    to_empty_if_meta_device,  # noqa: F401
-    unimodal_build_distributed_models,  # noqa: F401
-)
+from typing import Any
+
+try:
+    from megatron.training.models.dist_utils import (
+        _ddp_wrap,  # noqa: F401
+        _print_num_params,  # noqa: F401
+        _wrap_with_mp_wrapper,  # noqa: F401
+        build_virtual_pipeline_stages,  # noqa: F401
+        to_empty_if_meta_device,  # noqa: F401
+        unimodal_build_distributed_models,  # noqa: F401
+    )
+except ImportError:
+
+    def _ddp_wrap(*args: Any, **kwargs: Any):
+        return args[0] if args else None
+
+
+    def _print_num_params(*args: Any, **kwargs: Any) -> None:
+        return None
+
+
+    def _wrap_with_mp_wrapper(*args: Any, **kwargs: Any):
+        return args[0] if args else None
+
+
+    def build_virtual_pipeline_stages(*args: Any, **kwargs: Any):
+        return []
+
+
+    def to_empty_if_meta_device(*args: Any, **kwargs: Any):
+        return args[0] if args else None
+
+
+    def unimodal_build_distributed_models(*args: Any, **kwargs: Any):
+        raise ImportError("Megatron training helpers are unavailable in this environment")
