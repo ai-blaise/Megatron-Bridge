@@ -31,8 +31,22 @@ export GLOO_SOCKET_IFNAME
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+MCORE_ROOT="$PWD/3rdparty/Megatron-LM"
+if [[ ! -f "$MCORE_ROOT/megatron/core/__init__.py" ]]; then
+  echo "[glm4_9b_omp_bridge_convert] Initializing pinned Megatron-LM submodule..."
+  git submodule update --init 3rdparty/Megatron-LM
+fi
+
+if [[ ! -f "$MCORE_ROOT/megatron/core/__init__.py" ]]; then
+  echo "[glm4_9b_omp_bridge_convert] ERROR: Missing pinned Megatron-LM checkout at $MCORE_ROOT" >&2
+  exit 1
+fi
+
+export PYTHONPATH="$PWD/src:$MCORE_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
 echo "=== GLM-4-9B OMP Bridge conversion preflight ==="
 echo "Bridge repo:        $PWD"
+echo "Pinned MCore root:  $MCORE_ROOT"
 echo "HF model:           $HF_MODEL"
 echo "Base model:         $BASE_MODEL"
 echo "Base tokenizer:     $BASE_TOKENIZER"
@@ -64,6 +78,8 @@ print("torch:", torch.__version__)
 print("transformers:", transformers.__version__)
 print("megatron.bridge:", pathlib.Path(megatron.bridge.__file__).resolve())
 print("megatron.core:", pathlib.Path(megatron.core.__file__).resolve())
+import megatron.training
+print("megatron.training:", pathlib.Path(megatron.training.__file__).resolve())
 PY
 echo
 
