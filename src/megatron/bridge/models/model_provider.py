@@ -75,6 +75,9 @@ def _init_single_process_distributed(*, use_cpu_initialization: bool = False) ->
         except Exception as exc:
             warnings.warn(f"CUDA device selection failed ({exc}); falling back to gloo for CPU initialization.")
 
+    if backend == "gloo":
+        os.environ["GLOO_SOCKET_IFNAME"] = os.environ.get("GLOO_SOCKET_IFNAME", "lo")
+
     torch.distributed.init_process_group(backend)
 
 
