@@ -60,6 +60,24 @@ except ImportError:
 ModelT = TypeVar("ModelT", bound=MegatronModule)
 
 
+def _init_single_process_distributed(*, use_cpu_initialization: bool = False) -> None:
+    """Initialize a single-process distributed group for model construction."""
+    os.environ["RANK"] = os.environ.get("RANK", "0")
+    os.environ["WORLD_SIZE"] = os.environ.get("WORLD_SIZE", "1")
+    os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
+    os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12355")
+
+    backend = "gloo"
+    if not use_cpu_initialization and torch.cuda.is_available():
+        try:
+            torch.cuda.set_device(get_local_rank_preinit())
+            backend = "nccl"
+        except Exception as exc:
+            warnings.warn(f"CUDA device selection failed ({exc}); falling back to gloo for CPU initialization.")
+
+    torch.distributed.init_process_group(backend)
+
+
 class ModelProviderMixin(abc.ABC, Generic[ModelT]):
     """A mixin that implements the ModelProvider pattern for Megatron Bridge.
 
@@ -212,12 +230,7 @@ class ModelProviderMixin(abc.ABC, Generic[ModelT]):
             raise ValueError("ddp_config is required when wrap_with_ddp is True")
 
         if not torch.distributed.is_initialized():
-            os.environ["RANK"] = os.environ.get("RANK", "0")
-            os.environ["WORLD_SIZE"] = os.environ.get("WORLD_SIZE", "1")
-            os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
-            os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12355")
-            torch.cuda.set_device(get_local_rank_preinit())
-            torch.distributed.init_process_group("nccl")
+            _init_single_process_distributed(use_cpu_initialization=bool(use_cpu_initialization))
 
         # If pg_collection is provided (e.g., from use_decentralized_pg=True),
         # use it directly. Otherwise, initialize model parallel state and get pg_collection from MPU.
@@ -281,8 +294,7 @@ class ModelProviderMixin(abc.ABC, Generic[ModelT]):
             **model_parallel_kwargs: Additional arguments for `parallel_state.initialize_model_parallel`.
         """
         if not torch.distributed.is_initialized():
-            torch.cuda.set_device(get_local_rank_preinit())
-            torch.distributed.init_process_group("nccl")
+            _init_single_process_distributed(use_cpu_initialization=bool(getattr(self, "use_cpu_initialization", False)))
 
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size=getattr(self, "tensor_model_parallel_size", 1),
@@ -293,7 +305,7 @@ class ModelProviderMixin(abc.ABC, Generic[ModelT]):
             expert_tensor_parallel_size=getattr(self, "expert_tensor_parallel_size", None),
             **model_parallel_kwargs,
         )
-        if seed is not None:
+        if seed is not None and torch.distributed.get_backend() == "nccl":
             model_parallel_cuda_manual_seed(seed, **(seed_kwargs or {}))
 
     @property
