@@ -46,6 +46,7 @@ class GLM4Bridge(MegatronModelBridge):
         provider.rotary_percent = 1.0
         provider.share_embeddings_and_output_weights = getattr(hf_pretrained.config, "tie_word_embeddings", False)
         provider.autocast_dtype = torch.bfloat16
+        provider.gradient_accumulation_fusion = False
 
         return provider
 
