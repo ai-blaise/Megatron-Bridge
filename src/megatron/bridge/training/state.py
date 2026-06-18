@@ -25,7 +25,6 @@ from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.timers import Timers
 from megatron.core.utils import StragglerDetector
 from torch.distributed.checkpoint.stateful import Stateful
-from torch.utils.tensorboard.writer import SummaryWriter
 
 from megatron.bridge.training.config import ConfigContainer
 from megatron.bridge.training.nvrx_straggler import NVRxStragglerDetectionManager
