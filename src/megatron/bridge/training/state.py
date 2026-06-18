@@ -17,7 +17,7 @@ import os
 import time
 import types
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from megatron.core.energy_monitor import EnergyMonitor
@@ -33,6 +33,9 @@ from megatron.bridge.training.tokenizers.tokenizer import build_tokenizer
 from megatron.bridge.training.utils.log_utils import safe_serialize
 from megatron.bridge.training.utils.sig_utils import DistributedSignalHandler
 from megatron.bridge.utils.common_utils import get_rank_safe, get_world_size_safe
+
+if TYPE_CHECKING:
+    from torch.utils.tensorboard.writer import SummaryWriter
 
 try:
     from megatron.core.dist_checkpointing.strategies.torch import get_async_strategy
