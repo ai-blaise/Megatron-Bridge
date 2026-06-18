@@ -47,9 +47,22 @@ from megatron.training.config import TrainingConfig as MTrainTrainingConfig
 from megatron.bridge.data.datasets.packed_sequence import PackedSequenceSpecs
 from megatron.bridge.models import GPTModelProvider, T5ModelProvider
 from megatron.bridge.models.gpt.gpt_builder import GPTModelConfig
-from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
-from megatron.bridge.models.mamba.mamba_provider import MambaModelProvider
-from megatron.bridge.models.megatron_mimo.megatron_mimo_provider import MegatronMIMOProvider
+try:
+    from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
+    from megatron.bridge.models.mamba.mamba_provider import MambaModelProvider
+except ImportError:
+    class MambaModelConfig:
+        """Placeholder used when Mamba support is unavailable in Megatron-Core."""
+
+    class MambaModelProvider:
+        """Placeholder used when Mamba support is unavailable in Megatron-Core."""
+
+try:
+    from megatron.bridge.models.megatron_mimo.megatron_mimo_provider import MegatronMIMOProvider
+except ImportError:
+    class MegatronMIMOProvider:
+        """Placeholder used when Megatron-MIMO support is unavailable."""
+
 from megatron.bridge.peft.base import PEFT
 from megatron.bridge.training.comm_overlap import CommOverlapConfig
 from megatron.bridge.training.flex_dispatcher_backend import validate_flex_dispatcher_backend
