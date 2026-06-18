@@ -49,6 +49,40 @@ HF_BASED_TOKENIZERS = [
 ]
 
 
+@contextmanager
+def _ignore_unavailable_cuda_synchronize() -> Generator[None, None, None]:
+    """Ignore TE extra-state CUDA sync failures during offline checkpoint conversion."""
+
+    original_synchronize = torch.cuda.synchronize
+    warned = False
+
+    def synchronize_guard(*args, **kwargs):
+        nonlocal warned
+        try:
+            return original_synchronize(*args, **kwargs)
+        except Exception as exc:
+            message = str(exc)
+            unavailable = (
+                "CUDA-capable device(s) is/are busy or unavailable" in message
+                or "cudaErrorDevicesUnavailable" in message
+            )
+            if not unavailable:
+                raise
+            if not warned:
+                logger.warning(
+                    "Skipping torch.cuda.synchronize() during checkpoint state-dict generation because CUDA is "
+                    "unavailable. This is expected for CPU/offline conversion paths."
+                )
+                warned = True
+            return None
+
+    torch.cuda.synchronize = synchronize_guard
+    try:
+        yield
+    finally:
+        torch.cuda.synchronize = original_synchronize
+
+
 def _uses_hybrid_rng_tracker(model_cfg: Any) -> bool:
     is_hybrid_model = getattr(model_cfg, "is_hybrid_model", False)
     if isinstance(is_hybrid_model, bool) and is_hybrid_model:
@@ -609,17 +643,18 @@ def save_megatron_model(
         sharded_sd_metadata = _build_sharded_state_dict_metadata(False, state.cfg.checkpoint)
 
         # Generate state dict with ShardedTensorFactory objects
-        state_dict = generate_state_dict(
-            state.cfg.checkpoint,
-            model,
-            optimizer=None,
-            opt_param_scheduler=None,
-            rng_state=rng_state,
-            iteration=0,
-            optim_sd_kwargs=dict(metadata=sharded_sd_metadata),
-            model_sd_kwargs=dict(metadata=sharded_sd_metadata),
-            rerun_state=None,
-        )
+        with _ignore_unavailable_cuda_synchronize():
+            state_dict = generate_state_dict(
+                state.cfg.checkpoint,
+                model,
+                optimizer=None,
+                opt_param_scheduler=None,
+                rng_state=rng_state,
+                iteration=0,
+                optim_sd_kwargs=dict(metadata=sharded_sd_metadata),
+                model_sd_kwargs=dict(metadata=sharded_sd_metadata),
+                rerun_state=None,
+            )
 
         # Build a map from storage data_ptr to model parameter
         # This allows us to clear model params as we process factories

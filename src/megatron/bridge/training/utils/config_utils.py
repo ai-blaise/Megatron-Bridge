@@ -15,6 +15,7 @@
 import logging
 from dataclasses import fields, is_dataclass
 from importlib import import_module
+from pathlib import Path
 from typing import Any, Mapping
 
 try:
@@ -48,8 +49,31 @@ except (ImportError, ModuleNotFoundError):
                 return {key: _ConfigContainerBase._convert_value_to_dict(item) for key, item in value.items()}
             return value
 
+        @staticmethod
+        def _convert_value_to_yaml_safe(value: Any) -> Any:
+            value = _ConfigContainerBase._convert_value_to_dict(value)
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                return value
+            if isinstance(value, Path):
+                return str(value)
+            if isinstance(value, list):
+                return [_ConfigContainerBase._convert_value_to_yaml_safe(item) for item in value]
+            if isinstance(value, tuple):
+                return [_ConfigContainerBase._convert_value_to_yaml_safe(item) for item in value]
+            if isinstance(value, dict):
+                return {
+                    str(key): _ConfigContainerBase._convert_value_to_yaml_safe(item) for key, item in value.items()
+                }
+            return str(value)
+
         def to_dict(self) -> dict[str, Any]:
             return self._convert_value_to_dict(self)
+
+        def to_yaml(self, path: str | Path) -> None:
+            import yaml
+
+            with open(path, "w", encoding="utf-8") as stream:
+                yaml.safe_dump(self._convert_value_to_yaml_safe(self), stream, sort_keys=False)
 
     def _resolve_target_class(config_dict: Mapping[str, Any]) -> type[Any] | None:
         target = config_dict.get("_target_")
