@@ -32,7 +32,6 @@ from megatron.core.transformer import MegatronModule
 from megatron.bridge.data.loaders import setup_data_iterators
 from megatron.bridge.models.common import ModelConfig
 from megatron.bridge.models.gpt.gpt_builder import GPTModelConfig
-from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
 from megatron.bridge.models.model_provider import ModelProviderMixin
 from megatron.bridge.models.transformer_config import TransformerConfig
 from megatron.bridge.training import fault_tolerance
@@ -56,6 +55,12 @@ from megatron.bridge.training.utils.checkpoint_utils import checkpoint_exists, i
 from megatron.bridge.training.utils.log_utils import append_to_progress_log, barrier_and_log, setup_logging
 from megatron.bridge.training.utils.train_utils import start_memory_history_recording
 from megatron.bridge.utils.common_utils import get_rank_safe, print_rank_0
+
+try:
+    from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
+except ImportError:
+    class MambaModelConfig:
+        """Placeholder used when Mamba support is unavailable in Megatron-Core."""
 
 
 class SetupOutput(NamedTuple):

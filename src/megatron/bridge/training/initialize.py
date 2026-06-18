@@ -47,7 +47,6 @@ from megatron.core.utils import (
 
 from megatron.bridge.models import GPTModelProvider, T5ModelProvider
 from megatron.bridge.models.gpt.gpt_builder import GPTModelConfig
-from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
 from megatron.bridge.models.transformer_config import TransformerConfig
 from megatron.bridge.training.config import ConfigContainer, DistributedInitConfig, RerunStateMachineConfig, RNGConfig
 from megatron.bridge.training.utils.pg_utils import DistTrainProcessGroupCollection
@@ -58,6 +57,12 @@ from megatron.bridge.utils.common_utils import (
     get_rank_safe,
     get_world_size_safe,
 )
+
+try:
+    from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
+except ImportError:
+    class MambaModelConfig:
+        """Placeholder used when Mamba support is unavailable in Megatron-Core."""
 
 
 def initialize_megatron(

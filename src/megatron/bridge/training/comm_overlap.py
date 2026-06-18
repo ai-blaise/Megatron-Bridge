@@ -22,7 +22,14 @@ from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_
 
 from megatron.bridge.models import GPTModelProvider, T5ModelProvider
 from megatron.bridge.models.gpt.gpt_builder import GPTModelConfig
-from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
+
+try:
+    from megatron.bridge.models.mamba.mamba_builder import MambaModelConfig
+except ImportError:
+
+    class MambaModelConfig:
+        """Placeholder used when Mamba support is unavailable in Megatron-Core."""
+
 from megatron.bridge.utils.cuda_graph import has_cuda_graph_module
 
 
