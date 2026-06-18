@@ -49,6 +49,30 @@ class TokenizerConfig(MTrainTokenizerConfig):
     rank: int = 0
     """Distributed rank used by MCore tokenizer helper logging."""
 
+    tokenizer_special_tokens: list[str] | None = None
+    """Additional special tokens passed to MCore tokenizer builders."""
+
+    tokenizer_revision: str | None = None
+    """Optional HuggingFace tokenizer revision."""
+
+    tokenizer_metadata: dict[str, Any] | None = None
+    """Optional explicit tokenizer metadata for MCore tokenizer builders."""
+
+    special_tokens: list[str] | None = None
+    """Special tokens used by multimodal tokenizer builders."""
+
+    vocab_size: int | None = None
+    """Optional vocab size used by NullTokenizer/TikTokenizer builders."""
+
+    tiktoken_pattern: str | None = None
+    """Optional TikToken regex pattern."""
+
+    tiktoken_num_special_tokens: int = 1000
+    """Number of special tokens reserved by TikToken tokenizers."""
+
+    sft_tokenizer_prompt_format: str | None = None
+    """Optional prompt format used by SFTTokenizer builders."""
+
     hf_tokenizer_kwargs: dict[str, Any] | None = field(default_factory=dict)
     """Additional keyword arguments to pass to HuggingFace AutoTokenizer.from_pretrained.
 
