@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
-from megatron.core.dist_checkpointing.strategies.torch import get_async_strategy
 from megatron.core.energy_monitor import EnergyMonitor
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.timers import Timers
@@ -34,6 +33,16 @@ from megatron.bridge.training.tokenizers.tokenizer import build_tokenizer
 from megatron.bridge.training.utils.log_utils import safe_serialize
 from megatron.bridge.training.utils.sig_utils import DistributedSignalHandler
 from megatron.bridge.utils.common_utils import get_rank_safe, get_world_size_safe
+
+try:
+    from megatron.core.dist_checkpointing.strategies.torch import get_async_strategy
+except ImportError:
+
+    def get_async_strategy(_async_strategy: str) -> tuple[str, dict[str, Any]]:
+        raise RuntimeError(
+            "Async checkpoint strategy support is unavailable in this Megatron-Core version. "
+            "Disable checkpoint.async_save or update Megatron-Core."
+        )
 
 
 @dataclass
