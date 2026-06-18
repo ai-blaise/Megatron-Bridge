@@ -13,16 +13,78 @@
 # limitations under the License.
 
 import logging
+from dataclasses import fields, is_dataclass
+from importlib import import_module
 from typing import Any, Mapping
 
-from megatron.training.config.container import ConfigContainerBase as _ConfigContainerBase  # noqa: F401
-from megatron.training.config.utils import (
-    _get_init_false_fields,  # noqa: F401
-    _resolve_target_class,  # noqa: F401
-)
-from megatron.training.config.utils import (
-    sanitize_dataclass_config as _sanitize_dataclass_config,
-)
+try:
+    from megatron.training.config.container import ConfigContainerBase as _ConfigContainerBase  # noqa: F401
+    from megatron.training.config.utils import (
+        _get_init_false_fields,  # noqa: F401
+        _resolve_target_class,  # noqa: F401
+    )
+    from megatron.training.config.utils import (
+        sanitize_dataclass_config as _sanitize_dataclass_config,
+    )
+except (ImportError, ModuleNotFoundError):
+
+    class _ConfigContainerBase:
+        """Small fallback for Megatron-LM versions without training.config.container."""
+
+        @staticmethod
+        def _convert_value_to_dict(value: Any) -> Any:
+            if is_dataclass(value):
+                return {
+                    field.name: _ConfigContainerBase._convert_value_to_dict(getattr(value, field.name))
+                    for field in fields(value)
+                }
+            if hasattr(value, "to_dict"):
+                return value.to_dict()
+            if isinstance(value, list):
+                return [_ConfigContainerBase._convert_value_to_dict(item) for item in value]
+            if isinstance(value, tuple):
+                return tuple(_ConfigContainerBase._convert_value_to_dict(item) for item in value)
+            if isinstance(value, dict):
+                return {key: _ConfigContainerBase._convert_value_to_dict(item) for key, item in value.items()}
+            return value
+
+        def to_dict(self) -> dict[str, Any]:
+            return self._convert_value_to_dict(self)
+
+    def _resolve_target_class(config_dict: Mapping[str, Any]) -> type[Any] | None:
+        target = config_dict.get("_target_")
+        if not isinstance(target, str) or "." not in target:
+            return None
+
+        module_name, class_name = target.rsplit(".", 1)
+        try:
+            module = import_module(module_name)
+        except (ImportError, ModuleNotFoundError):
+            return None
+        return getattr(module, class_name, None)
+
+    def _get_init_false_fields(target_class: type[Any] | None) -> set[str]:
+        if target_class is None or not is_dataclass(target_class):
+            return set()
+        return {field.name for field in fields(target_class) if not field.init}
+
+    def _sanitize_dataclass_config(config_dict: dict[str, Any]) -> dict[str, Any]:
+        target_class = _resolve_target_class(config_dict)
+        init_false_fields = _get_init_false_fields(target_class)
+
+        sanitized: dict[str, Any] = {}
+        for key, value in config_dict.items():
+            if key in init_false_fields:
+                continue
+            if isinstance(value, dict):
+                sanitized[key] = _sanitize_dataclass_config(value)
+            elif isinstance(value, list):
+                sanitized[key] = [
+                    _sanitize_dataclass_config(item) if isinstance(item, dict) else item for item in value
+                ]
+            else:
+                sanitized[key] = value
+        return sanitized
 
 
 logger = logging.getLogger(__name__)
