@@ -12,16 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 
-from megatron.training.utils.log_utils import (
-    add_filter_to_all_loggers,  # noqa: F401
-    append_to_progress_log,  # noqa: F401
-    barrier_and_log,  # noqa: F401
-    module_filter,  # noqa: F401
-    warning_filter,  # noqa: F401
-)
-from megatron.training.utils.log_utils import setup_logging as _mlm_setup_logging
+try:
+    from megatron.training.utils.log_utils import (
+        add_filter_to_all_loggers,  # noqa: F401
+        append_to_progress_log,  # noqa: F401
+        barrier_and_log,  # noqa: F401
+        module_filter,  # noqa: F401
+        warning_filter,  # noqa: F401
+    )
+    from megatron.training.utils.log_utils import setup_logging as _mlm_setup_logging
+except (ImportError, ModuleNotFoundError):
+    from megatron.training.utils import append_to_progress_log  # noqa: F401
+
+    def module_filter(_record: logging.LogRecord) -> bool:
+        return True
+
+    def warning_filter(record: logging.LogRecord) -> bool:
+        return record.levelno != logging.WARNING
+
+    def add_filter_to_all_loggers(filter_fn) -> None:
+        logging.getLogger().addFilter(filter_fn)
+
+    def barrier_and_log(message: str) -> None:
+        try:
+            import torch.distributed as dist
+
+            if dist.is_available() and dist.is_initialized():
+                dist.barrier()
+        except Exception:
+            pass
+        logging.getLogger(__name__).info(message)
+
+    def _mlm_setup_logging(
+        logging_level: int | None = None,
+        filter_warning: bool = True,
+        modules_to_filter: list[str] | None = None,
+        set_level_for_all_loggers: bool = False,
+    ) -> None:
+        level = logging_level if logging_level is not None else logging.INFO
+        logging.basicConfig(level=level)
+        target_loggers = [logging.getLogger()]
+        if set_level_for_all_loggers:
+            target_loggers.extend(logging.Logger.manager.loggerDict.values())
+        for logger in target_loggers:
+            if isinstance(logger, logging.Logger):
+                logger.setLevel(level)
+                if filter_warning:
+                    logger.addFilter(warning_filter)
 
 
 def setup_logging(
