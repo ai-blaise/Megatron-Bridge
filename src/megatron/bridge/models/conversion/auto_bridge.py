@@ -1133,7 +1133,12 @@ class AutoBridge(Generic[MegatronModelT]):
         )
 
     def load_megatron_model(
-        self, path: str | Path, *, mp_overrides: ModelParallelKwargs | None = None, **kwargs: Unpack[GetModelKwargs]
+        self,
+        path: str | Path,
+        *,
+        mp_overrides: ModelParallelKwargs | None = None,
+        model_cfg: Optional[Any] = None,
+        **kwargs: Unpack[GetModelKwargs],
     ) -> list[MegatronModelT]:
         """
         Load a Megatron model from a native Megatron checkpoint.
@@ -1145,6 +1150,10 @@ class AutoBridge(Generic[MegatronModelT]):
         Args:
             path: Directory path where the Megatron checkpoint is stored
             mp_overrides: Optional model-parallel overrides to apply to the loaded config.
+            model_cfg: Optional pre-built model config/provider. When provided, the
+                checkpoint's ``run_config.yaml`` is NOT read — the given config is used
+                directly to build the model before loading weights. Useful when the
+                checkpoint was saved without a config file.
             **kwargs: Additional arguments passed to the model provider
 
         Returns:
@@ -1200,6 +1209,7 @@ class AutoBridge(Generic[MegatronModelT]):
             use_cpu_init=(skip_temp_dist_context and dist.get_backend() == "gloo"),
             skip_temp_dist_context=skip_temp_dist_context,
             mp_overrides=mp_overrides,
+            model_cfg=model_cfg,
         )
         return model if isinstance(model, list) else [model]
 
@@ -1279,6 +1289,7 @@ class AutoBridge(Generic[MegatronModelT]):
         show_progress: bool = True,
         strict: bool = False,
         source_path: Optional[Union[str, Path]] = None,
+        model_cfg: Optional[Any] = None,
     ) -> None:
         """
         Export a Megatron checkpoint to HuggingFace format.
@@ -1299,6 +1310,10 @@ class AutoBridge(Generic[MegatronModelT]):
                 This is useful when converting from Megatron checkpoints where the original
                 HuggingFace model with custom modeling files needs to be referenced. If not specified,
                 the path will be automatically determined from the HuggingFace configuration.
+            model_cfg: Optional pre-built model config/provider. When provided, the
+                checkpoint's ``run_config.yaml`` is NOT read — the given config is used
+                directly to build the model before loading weights. Useful when exporting
+                checkpoints that were saved without a config file (e.g. SFT training).
 
         Example:
             >>> # Basic export
@@ -1326,7 +1341,7 @@ class AutoBridge(Generic[MegatronModelT]):
         # Export ckpt performs on CPU
         with temporary_distributed_context(backend="gloo"):
             # Load the Megatron model
-            megatron_model = self.load_megatron_model(megatron_path, wrap_with_ddp=False)
+            megatron_model = self.load_megatron_model(megatron_path, wrap_with_ddp=False, model_cfg=model_cfg)
 
             # Save in HuggingFace format
             self.save_hf_pretrained(

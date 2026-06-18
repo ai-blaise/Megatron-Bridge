@@ -148,6 +148,9 @@ def export_megatron_to_hf(
     show_progress: bool = True,
     strict: bool = True,
     trust_remote_code: bool = False,
+    model_overrides: Optional[dict] = None,
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
 ) -> None:
     """
     Export a Megatron checkpoint to HuggingFace format.
@@ -159,6 +162,12 @@ def export_megatron_to_hf(
         show_progress: Display progress bar during weight export
         strict: Whether to perform strict validation during weight export
         trust_remote_code: Whether to trust remote code when loading config
+        model_overrides: Optional dict of model config overrides applied to the provider
+            when the checkpoint lacks ``run_config.yaml``. Keys should match
+            ``GPTModelProvider`` attribute names. If ``run_config.yaml`` is present,
+            this parameter is ignored and the config is read from the checkpoint.
+        tensor_parallel_size: TP size used during training (default 1).
+        pipeline_parallel_size: PP size used during training (default 1).
     """
     print(f"🔄 Starting export: {megatron_path} -> {hf_path}")
 
@@ -176,23 +185,42 @@ def export_megatron_to_hf(
             latest_iter = max(iter_dirs, key=lambda d: int(d.name.replace("iter_", "")))
             config_files = list(latest_iter.glob("run_config.yaml"))
 
-    if not config_files:
-        raise FileNotFoundError(
-            f"Could not find run_config.yaml in {checkpoint_path}. Please ensure this is a valid Megatron checkpoint."
+    if config_files:
+        print(f"📋 Found configuration: {config_files[0]}")
+        # Existing path: use auto-config from checkpoint
+        bridge = AutoBridge.from_auto_config(str(checkpoint_path), hf_model, trust_remote_code=trust_remote_code)
+        model_cfg = None
+    elif model_overrides is not None:
+        print("📋 No run_config.yaml found — using bridge provider with training overrides")
+        print(f"   Overrides: {model_overrides}")
+        bridge = AutoBridge.from_hf_pretrained(
+            hf_model,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=trust_remote_code,
         )
-
-    print(f"📋 Found configuration: {config_files[0]}")
-
-    # Export always uses the config synthesized from checkpoint + HF reference.
-    bridge = AutoBridge.from_auto_config(megatron_path, hf_model, trust_remote_code=trust_remote_code)
+        provider = bridge.provider_bridge(bridge.hf_pretrained)
+        for key, value in model_overrides.items():
+            if hasattr(provider, key):
+                setattr(provider, key, value)
+        provider.tensor_model_parallel_size = tensor_parallel_size
+        provider.pipeline_model_parallel_size = pipeline_parallel_size
+        model_cfg = provider
+    else:
+        raise FileNotFoundError(
+            f"Could not find run_config.yaml in {checkpoint_path} "
+            f"and no --model-overrides provided. "
+            f"Use --model-overrides to specify training config overrides "
+            f"(e.g. --model-overrides num_query_groups=8 add_qkv_bias=false)."
+        )
 
     # Export using the convenience method
     print("📤 Exporting to HuggingFace format...")
     bridge.export_ckpt(
-        megatron_path=megatron_path,
+        megatron_path=str(checkpoint_path),
         hf_path=hf_path,
         show_progress=show_progress,
         strict=strict,
+        model_cfg=model_cfg,
     )
 
     print(f"✅ Successfully exported model to: {hf_path}")
@@ -251,6 +279,25 @@ def main():
         "--not-strict", action="store_true", help="Allow source and target checkpoint to have different keys"
     )
     export_parser.add_argument("--trust-remote-code", action="store_true", help="Allow custom model code execution")
+    export_parser.add_argument(
+        "--model-overrides",
+        nargs="*",
+        default=None,
+        help="Key=value pairs to override on the model provider when exporting without run_config.yaml. "
+        "Example: --model-overrides num_query_groups=8 add_qkv_bias=false",
+    )
+    export_parser.add_argument(
+        "--tp-size",
+        type=int,
+        default=1,
+        help="Tensor-parallel size used during training (default: 1). Only used with --model-overrides.",
+    )
+    export_parser.add_argument(
+        "--pp-size",
+        type=int,
+        default=1,
+        help="Pipeline-parallel size used during training (default: 1). Only used with --model-overrides.",
+    )
     args = parser.parse_args()
 
     if not args.command:
@@ -268,6 +315,25 @@ def main():
         )
 
     elif args.command == "export":
+        model_overrides = None
+        if args.model_overrides is not None:
+            model_overrides = {}
+            for kv in args.model_overrides:
+                key, _, value = kv.partition("=")
+                if not value:
+                    raise ValueError(f"Invalid override format: {kv}. Expected key=value.")
+                try:
+                    model_overrides[key] = int(value)
+                except ValueError:
+                    if value.lower() == "true":
+                        model_overrides[key] = True
+                    elif value.lower() == "false":
+                        model_overrides[key] = False
+                    else:
+                        try:
+                            model_overrides[key] = float(value)
+                        except ValueError:
+                            model_overrides[key] = value
         export_megatron_to_hf(
             hf_model=args.hf_model,
             megatron_path=args.megatron_path,
@@ -275,6 +341,9 @@ def main():
             show_progress=not args.no_progress,
             strict=not args.not_strict,
             trust_remote_code=args.trust_remote_code,
+            model_overrides=model_overrides,
+            tensor_parallel_size=args.tp_size,
+            pipeline_parallel_size=args.pp_size,
         )
     else:
         raise RuntimeError(f"Unknown command: {args.command}")
