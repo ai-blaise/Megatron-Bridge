@@ -13,8 +13,22 @@
 # limitations under the License.
 """Megatron Bridge - A component of the Megatron ecosystem."""
 
-import megatron.bridge.diffusion.models  # noqa: F401 — registers diffusion bridges
-import megatron.bridge.models  # noqa: F401 — triggers all bridge and HF Auto class registrations
+import importlib
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _optional_import(module_name: str) -> None:
+    try:
+        importlib.import_module(module_name)
+    except Exception as exc:
+        logger.debug("Skipping optional bridge module %s: %s", module_name, exc)
+
+
+_optional_import("megatron.bridge.diffusion.models")
+_optional_import("megatron.bridge.models")
+
 from megatron.bridge.models.conversion.auto_bridge import AutoBridge
 from megatron.bridge.package_info import (
     __contact_emails__,

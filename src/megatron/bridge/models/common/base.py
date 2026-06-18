@@ -52,6 +52,11 @@ except ImportError:
         def __init__(self, model_config: ModelConfig) -> None:
             self._model_config = model_config
 
+        @classmethod
+        def __class_getitem__(cls, _params):
+            """Accept generic subscripting in newer Bridge builder annotations."""
+            return cls
+
     def compose_hooks(hooks: list[Callable[..., Any]] | None):
         """Compose a hook list into a single callable when training helpers are absent."""
         if not hooks:

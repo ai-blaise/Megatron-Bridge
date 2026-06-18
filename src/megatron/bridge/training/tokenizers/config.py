@@ -13,9 +13,25 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
-from megatron.training.config import TokenizerConfig as MTrainTokenizerConfig
+try:
+    from megatron.training.config import TokenizerConfig as MTrainTokenizerConfig
+except (ImportError, AttributeError):
+    @dataclass(kw_only=True)
+    class MTrainTokenizerConfig:
+        """Compatibility base for Megatron-LM checkouts missing TokenizerConfig."""
+
+        tokenizer_type: str = "NullTokenizer"
+        tokenizer_model: str | Path = ""
+        vocab_file: str | Path | None = None
+        merge_file: str | Path | None = None
+        pad_vocab_size: bool = False
+        tokenizer_hf_no_use_fast: bool = False
+        tokenizer_hf_no_include_special_tokens: bool = False
+        tokenizer_sentencepiece_legacy: bool = False
+        trust_remote_code: bool = False
 
 from megatron.bridge.utils.common_utils import warn_rank_0
 

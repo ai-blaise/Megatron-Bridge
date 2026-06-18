@@ -15,6 +15,7 @@
 import abc
 import os
 import warnings
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Callable, Generic, Mapping, Self, TypedDict, TypeVar, Union
 
@@ -58,6 +59,44 @@ except ImportError:
 
 
 ModelT = TypeVar("ModelT", bound=MegatronModule)
+
+
+def _patch_disabled_te_cpu_offload_context() -> None:
+    """Make disabled TE CPU offload a no-op across Megatron-Core versions."""
+
+    try:
+        import megatron.core.extensions.transformer_engine as te_ext
+        import megatron.core.transformer.transformer_block as transformer_block
+    except ImportError:
+        return
+
+    original = getattr(te_ext, "get_cpu_offload_context", None)
+    if original is None or getattr(original, "_mbridge_disabled_offload_guard", False):
+        return
+
+    def guarded_get_cpu_offload_context(
+        enabled,
+        num_layers,
+        model_layers,
+        activation_offloading,
+        weight_offloading,
+        double_buffering,
+    ):
+        if not enabled:
+            return nullcontext(), None
+        return original(
+            enabled,
+            num_layers,
+            model_layers,
+            activation_offloading,
+            weight_offloading,
+            double_buffering,
+        )
+
+    guarded_get_cpu_offload_context._mbridge_disabled_offload_guard = True
+    te_ext.get_cpu_offload_context = guarded_get_cpu_offload_context
+    if getattr(transformer_block, "get_cpu_offload_context", None) is original:
+        transformer_block.get_cpu_offload_context = guarded_get_cpu_offload_context
 
 
 def _init_single_process_distributed(*, use_cpu_initialization: bool = False) -> None:
@@ -602,6 +641,7 @@ def get_model(
         model_provider.bf16 = bf16
 
     model_provider.use_cpu_initialization = use_cpu_initialization if use_cpu_initialization else False
+    _patch_disabled_te_cpu_offload_context()
     if init_model_with_meta_device:
         model_provider.init_model_with_meta_device = True
         with torch.device("meta"):
