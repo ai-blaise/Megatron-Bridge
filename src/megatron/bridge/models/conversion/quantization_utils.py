@@ -50,6 +50,41 @@ def is_fp8_tensor(tensor: torch.Tensor) -> bool:
     return tensor.dtype in FP8_DTYPES
 
 
+def hf_quantized_scale_key_candidates(hf_param: str) -> tuple[str, ...]:
+    """Return common HF companion scale names for a quantized weight tensor."""
+    candidates = []
+    if hf_param.endswith(".weight"):
+        base = hf_param[: -len(".weight")]
+        candidates.extend(
+            [
+                f"{base}.scale",
+                f"{base}.weight_scale",
+                f"{base}.scale_inv",
+                f"{base}.weight_scale_inv",
+            ]
+        )
+    candidates.extend(
+        [
+            f"{hf_param}.scale",
+            f"{hf_param}_scale",
+            f"{hf_param}.scale_inv",
+            f"{hf_param}_scale_inv",
+        ]
+    )
+    return tuple(dict.fromkeys(candidates))
+
+
+def find_hf_quantized_scale_key(
+    hf_param: str,
+    hf_state_dict: Mapping[str, torch.Tensor],
+) -> str | None:
+    """Find the companion scale tensor key for an HF quantized weight."""
+    for scale_key in hf_quantized_scale_key_candidates(hf_param):
+        if scale_key in hf_state_dict:
+            return scale_key
+    return None
+
+
 def is_float8_e8m0_dtype(dtype: torch.dtype) -> bool:
     """Return whether *dtype* is PyTorch's E8M0 scale dtype."""
     e8m0_dtype = getattr(torch, "float8_e8m0fnu", None)
@@ -428,8 +463,8 @@ def maybe_dequantize_hf_quantized_weight(
     if not hf_param.endswith(".weight"):
         return weight.to(dtype)
 
-    scale_key = hf_param[: -len(".weight")] + ".scale"
-    if scale_key not in hf_state_dict:
+    scale_key = find_hf_quantized_scale_key(hf_param, hf_state_dict)
+    if scale_key is None:
         return weight.to(dtype)
 
     return dequantize_fp8_e4m3fn_with_scale(weight, hf_state_dict[scale_key], name=hf_param, dtype=dtype)
@@ -458,8 +493,8 @@ def load_hf_quantized_weight_scale_pair(
     if weight.dtype != torch.float8_e4m3fn or not hf_param.endswith(".weight"):
         return None
 
-    scale_key = hf_param[: -len(".weight")] + ".scale"
-    if scale_key not in hf_state_dict:
+    scale_key = find_hf_quantized_scale_key(hf_param, hf_state_dict)
+    if scale_key is None:
         return None
 
     return weight, hf_state_dict[scale_key]
