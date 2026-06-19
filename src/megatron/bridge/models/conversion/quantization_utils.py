@@ -435,6 +435,36 @@ def maybe_dequantize_hf_quantized_weight(
     return dequantize_fp8_e4m3fn_with_scale(weight, hf_state_dict[scale_key], name=hf_param, dtype=dtype)
 
 
+def load_hf_quantized_weight_scale_pair(
+    hf_param: str | dict[str, str],
+    hf_state_dict: Mapping[str, torch.Tensor],
+) -> tuple[torch.Tensor | dict[str, torch.Tensor], torch.Tensor | dict[str, torch.Tensor]] | None:
+    """Load raw HF quantized weights and their sibling ``*.scale`` tensors.
+
+    Returns ``None`` when the parameter is not an FP8 ``*.weight`` tensor with a
+    matching scale entry, or when any nested mapping entry lacks one.
+    """
+    if isinstance(hf_param, dict):
+        weights: dict[str, torch.Tensor] = {}
+        scales: dict[str, torch.Tensor] = {}
+        for key, value in hf_param.items():
+            loaded = load_hf_quantized_weight_scale_pair(value, hf_state_dict)
+            if loaded is None:
+                return None
+            weights[key], scales[key] = loaded
+        return weights, scales
+
+    weight = hf_state_dict[hf_param]
+    if weight.dtype != torch.float8_e4m3fn or not hf_param.endswith(".weight"):
+        return None
+
+    scale_key = hf_param[: -len(".weight")] + ".scale"
+    if scale_key not in hf_state_dict:
+        return None
+
+    return weight, hf_state_dict[scale_key]
+
+
 def requantize_hf_weight_scale_pairs(
     converted_weights_dict: Mapping[str, torch.Tensor],
     hf_state_dict: Mapping[str, torch.Tensor],

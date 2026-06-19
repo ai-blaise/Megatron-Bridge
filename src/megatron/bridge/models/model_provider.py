@@ -53,9 +53,10 @@ from megatron.bridge.utils.instantiate_utils import InstantiationMode
 
 
 try:
-    from megatron.core.fp8_utils import correct_amax_history_if_needed
+    from megatron.core.fp8_utils import correct_amax_history_if_needed, get_fp8_context
 except ImportError:
     correct_amax_history_if_needed = None
+    get_fp8_context = None
 
 
 ModelT = TypeVar("ModelT", bound=MegatronModule)
@@ -642,12 +643,17 @@ def get_model(
 
     model_provider.use_cpu_initialization = use_cpu_initialization if use_cpu_initialization else False
     _patch_disabled_te_cpu_offload_context()
+    fp8_init_context = nullcontext()
+    if get_fp8_context is not None and getattr(model_provider, "fp8_param", False):
+        fp8_init_context = get_fp8_context(model_provider, is_init=True)
     if init_model_with_meta_device:
         model_provider.init_model_with_meta_device = True
-        with torch.device("meta"):
-            model = _create_model(model_provider, model_type, pg_collection=pg_collection)
+        with fp8_init_context:
+            with torch.device("meta"):
+                model = _create_model(model_provider, model_type, pg_collection=pg_collection)
     else:
-        model = _create_model(model_provider, model_type, pg_collection=pg_collection)
+        with fp8_init_context:
+            model = _create_model(model_provider, model_type, pg_collection=pg_collection)
 
     if pre_wrap_hook:
         if isinstance(pre_wrap_hook, list):
