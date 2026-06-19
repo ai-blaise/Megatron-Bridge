@@ -656,23 +656,55 @@ def save_megatron_model(
                 rerun_state=None,
             )
 
-        # Build a map from storage data_ptr to model parameter
-        # This allows us to clear model params as we process factories
+        def _param_storage_tensor(param):
+            """Return the real tensor storage backing a normal or TE quantized parameter."""
+            rowwise_data = getattr(param, "_rowwise_data", None)
+            if rowwise_data is not None:
+                return rowwise_data
+            return param.data
+
+        def _storage_ptr(tensor):
+            try:
+                return tensor.untyped_storage().data_ptr()
+            except RuntimeError:
+                rowwise_data = getattr(tensor, "_rowwise_data", None)
+                if rowwise_data is not None:
+                    return rowwise_data.untyped_storage().data_ptr()
+                raise
+
+        def _clear_model_param(param):
+            """Clear normal parameters and TE quantized parameter backing tensors."""
+            rowwise_data = getattr(param, "_rowwise_data", None)
+            if rowwise_data is not None:
+                param._rowwise_data = torch.empty(0, device=rowwise_data.device, dtype=rowwise_data.dtype)
+                rowwise_scale_inv = getattr(param, "_rowwise_scale_inv", None)
+                if rowwise_scale_inv is not None:
+                    param._rowwise_scale_inv = torch.empty(
+                        0,
+                        device=rowwise_scale_inv.device,
+                        dtype=rowwise_scale_inv.dtype,
+                    )
+                return
+            param.data = torch.empty(0, device=param.device, dtype=param.dtype)
+
+        # Build a map from storage data_ptr to model parameter. This allows us to
+        # clear model params as we process factories. TE quantized tensors do not
+        # expose valid storage through ``param.data``, so use their raw rowwise
+        # backing tensor for storage identity.
         storage_to_param = {}
         for m in model:
             for name, param in m.named_parameters():
-                storage_ptr = param.data.untyped_storage().data_ptr()
+                storage_ptr = _storage_ptr(_param_storage_tensor(param))
                 storage_to_param[storage_ptr] = param
 
         logger.info(f"[LOW_MEMORY_SAVE] Mapped {len(storage_to_param)} model parameters")
 
         def _clear_source_param(tensor):
             """Clear the model parameter that shares storage with this tensor."""
-            storage_ptr = tensor.untyped_storage().data_ptr()
+            storage_ptr = _storage_ptr(tensor)
             if storage_ptr in storage_to_param:
                 param = storage_to_param[storage_ptr]
-                # Clear the parameter data
-                param.data = torch.empty(0, device=param.device, dtype=param.dtype)
+                _clear_model_param(param)
                 del storage_to_param[storage_ptr]
                 return True
             return False
@@ -755,8 +787,9 @@ def save_megatron_model(
         remaining_params = len(storage_to_param)
         for m in model:
             for param in m.parameters():
-                if param.data.numel() > 0:  # Not already cleared
-                    param.data = torch.empty(0, device=param.device, dtype=param.dtype)
+                storage_tensor = _param_storage_tensor(param)
+                if storage_tensor.numel() > 0:  # Not already cleared
+                    _clear_model_param(param)
         model.clear()
         gc.collect()
         if torch.cuda.is_available():
