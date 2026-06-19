@@ -16,6 +16,7 @@ import torch
 from megatron.core.models.gpt.gpt_model import GPTModel
 
 from megatron.bridge.models.conversion import quantization_utils
+from megatron.bridge.models.conversion.model_bridge import WeightConversionTask
 from megatron.bridge.models.conversion.mapping_registry import MegatronMappingRegistry
 from megatron.bridge.models.conversion.model_bridge import MegatronModelBridge
 from megatron.bridge.models.conversion.param_mapping import AutoMapping, GatedMLPMapping, QKVMapping
@@ -111,6 +112,40 @@ class GLM4Bridge(MegatronModelBridge):
     def maybe_modify_loaded_hf_weight(self, hf_param, hf_state_dict):
         """Dequantize FP8 GLM-4 weights when sibling scale tensors are present."""
         return quantization_utils.maybe_dequantize_hf_quantized_weight(hf_param, hf_state_dict)
+
+    def maybe_modify_converted_hf_weight(
+        self,
+        task: WeightConversionTask,
+        converted_weights_dict: dict[str, torch.Tensor],
+        hf_state_dict,
+    ) -> dict[str, torch.Tensor]:
+        """Emit GLM-4 OMP FP8 scale tensors and source-only norm tensors on export."""
+        result: dict[str, torch.Tensor] = {}
+        export_fp8 = getattr(self, "export_weight_dtype", None) == "fp8"
+
+        for hf_name, tensor in converted_weights_dict.items():
+            if export_fp8 and hf_name.endswith(".weight") and tensor.ndim == 2 and not quantization_utils.is_fp8_tensor(tensor):
+                scale_key = quantization_utils.find_hf_quantized_scale_key(hf_name, hf_state_dict)
+                if scale_key is not None:
+                    q_weight, q_scale = quantization_utils.quantize_fp8_e4m3fn_like_scale(
+                        tensor,
+                        hf_state_dict[scale_key],
+                        name=hf_name,
+                    )
+                    result[hf_name] = q_weight
+                    result[scale_key] = q_scale
+                    continue
+
+            result[hf_name] = tensor
+
+            if hf_name.endswith(".input_layernorm.weight"):
+                layer_prefix = hf_name[: -len(".input_layernorm.weight")]
+                for suffix in ("post_self_attn_layernorm.weight", "post_mlp_layernorm.weight"):
+                    source_only_name = f"{layer_prefix}.{suffix}"
+                    if source_only_name in hf_state_dict and source_only_name not in result:
+                        result[source_only_name] = hf_state_dict[source_only_name]
+
+        return result
 
     def _hf_state_source(self, hf_pretrained: PreTrainedCausalLM | None = None):
         """Return the HF state source when the model has been loaded."""
